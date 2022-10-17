@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  Cirrus AWS Authenticators
+
+
+Parameters:
+  LogLevel:
+    Type: String
+    Default: WARN
+    AllowedValues:
+      - DEBUG
+      - INFO
+      - WARN
+      - ERROR
+      - NONE
+  ApiAuthExpectedAudience:
+    Type: String
+    Default: ""
+  ApiAuthExpectedIssuer:
+    Type: String
+    Default: ""
+  ApiAuthExpectedClientId:
+    Type: String
+    Default: ""
+  EdgeAuthCloudFrontDistributionId:
+    Type: String
+    Default: ""
+  PermissionsBoundary:
+    Type: String
+    Default: "FALSE"
+    AllowedValues:
+      - "TRUE"
+      - "FALSE"
+  # Required Tags for charge-backs
+  CostCenter:
+    Type: String
+  CostCenterApprover:
+    Type: String
+  SystemOwner:
+    Type: String
+  SystemCustodian:
+    Type: String
+  PrimaryItContact:
+    Type: String
+  Level1BusinessArea:
+    Type: String
+  DataClassification:
+    Type: String
+    AllowedValues:
+      - "Green"
+      - "Yellow"
+      - "Orange"
+      - "Red"
+      - "TBD"
+  Hipaa:
+    Type: String
+    AllowedValues:
+      - "Yes"
+      - "No"
+      - "TBD"
+
+Globals:
+  Function:
+    Timeout: 30
+
+Conditions:
+  # required for jenkins build; ignore any cfn-lint warnings when validating locally
+  OtherRegions: !Not [!Equals [!Ref 'AWS::Region', "us-east-2"]]
+  EnablePermissionsBoundary: !Equals [ !Ref PermissionsBoundary, "TRUE" ]
+
+Resources:
+  EdgeAuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/edgeAuth
+      Handler: index.lambdaHandler
+      Runtime: nodejs14.x
+      Timeout: 3
+      AutoPublishAlias: live
+      # DeploymentPreference:
+      #     Type: !FindInMap [EnvironmentConfiguration, !Ref DeployEnvironment, FunctionDeploymentPreference]
+      Role: !GetAtt "EdgeAuthFunctionExecutionRole.Arn"
+      Tags:
+        CostCenter: !Ref CostCenter
+        CostCenterApprover: !Ref CostCenterApprover
+        SystemOwner: !Ref SystemOwner
+        SystemCustodian: !Ref SystemCustodian
+        PrimaryItContact: !Ref PrimaryItContact
+        Level1BusinessArea: !Ref Level1BusinessArea
+        DataClassification: !Ref DataClassification
+        Hipaa: !Ref Hipaa
+
+  EdgeAuthFunctionExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      PermissionsBoundary: !If
+        - EnablePermissionsBoundary
+        - !Sub "arn:aws:iam::${AWS::AccountId}:policy/LZ-IAM-Boundary"
+        - !Ref "AWS::NoValue"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - edgelambda.amazonaws.com
+      Policies:
+        - PolicyName: "SSMAccess"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParametersByPath
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource: !Sub
+                  - "arn:aws:ssm:us-east-1:${AWS::AccountId}:parameter/${DistributionId}/*"
+                  - { DistributionId: !Ref EdgeAuthCloudFrontDistributionId }
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                Resource: "*"
+
+Outputs:
+  EdgeAuthFunctionArn:
+    Description: "Edge Lambda Authenticator Function ARN"
+    Value: !GetAtt EdgeAuthFunction.Arn
+  EdgeAuthFunctionVersion:
+    Description: "Edge Lambda Authenticator Function Version"
+    Value: !Ref EdgeAuthFunction.Version

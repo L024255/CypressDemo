@@ -1,0 +1,279 @@
+@Library("cirr-shared-libraries@v12.0.1") _
+
+import com.lilly.cirrus.jenkins.aws.AWSCredentials
+import com.lilly.cirrus.jenkins.aws.LambdaRuntime
+import com.lilly.cirrus.jenkins.scm.GitHub
+import groovy.json.JsonOutput
+
+String NODE_RUNTIME = LambdaRuntime.NODE_12.imageTag
+
+String INITIAL_TEMPLATE_NAME       = "template.yaml"
+String PACKAGED_TEMPLATE_NAME      = "template-packaged.yaml"
+String REGION_TEMPLATE_NAME        = "template-with-region.yaml"
+
+String LZ_AWS_ACCOUNT_NUMBER       = "663315797046" // (Cirrus LZ Dev)
+String LZ_ADDITIONAL_IAM_ROLE      = "arn:aws:iam::663315797046:role/jenkins_s3_shared_services_deploy"
+String LZ_CREDENTIALS_ID           = "jenkins-aws-lz"
+String LZ_S3_BUCKET                = "lly-templates"
+String LZ_KMS_KEY_ID               = "arn:aws:kms:us-east-2:174510912291:key/c9fdeb96-c1c8-4998-a200-87df40c56043"
+String LZ_S3_PACKAGE_PREFIX        = "cirrus/lambda/cirr-aws-authenticators"
+String LZ_S3_TEMPLATE_PREFIX       = "cirrus/cloudformation/cirr-aws-authenticators"
+
+String DEV_TEMPLATE_NAME           = "dev.yaml"
+String QA_TEMPLATE_NAME            = "qa.yaml"
+String PROD_TEMPLATE_NAME          = "prod.yaml"
+String LATEST_TEMPLATE_NAME        = "latest.yaml"
+
+runCloudFormationPackage = { s3Bucket, s3Prefix, kmsKeyId ->
+  sh "aws sts get-caller-identity"
+
+  sh """aws cloudformation package \
+    --template-file ${INITIAL_TEMPLATE_NAME} \
+    --output-template-file ${PACKAGED_TEMPLATE_NAME} \
+    --s3-bucket ${s3Bucket} \
+    --s3-prefix ${s3Prefix} \
+    --kms-key-id ${kmsKeyId} \
+    """
+
+  sh """grep "CodeUri: s3" ${PACKAGED_TEMPLATE_NAME} | \
+    sed "s/^[ \\t]*CodeUri: s3:\\/\\/${s3Bucket}\\///g" | \
+    while read s3key; do \
+      aws s3 \
+      cp \
+      --grants read=uri=http://acs.amazonaws.com/groups/global/AuthenticatedUsers full=id=d66797f0708737692e7ba8205bb7ab577f37f8e026c0009f89c8a4d06346e3ca \
+      --sse aws:kms \
+      --sse-kms-key-id ${kmsKeyId} \
+      "s3://${s3Bucket}/\$s3key" "s3://${s3Bucket}/\$s3key"; \
+    done
+  """
+
+  sh """sed "s/^\\([ \\t]*CodeUri: \\)s3:\\/\\/\\(lly-templates\\)\\/\\(.*\\)/\\1 \\{Bucket: \\!Join \\[\\"\\",\\[\\"\\2\\", \\!If \\[ \\"OtherRegions\\", \\!Sub \\"--\\\${AWS::Region}\\", \\"\\"\\]\\]\\],Key: \\"\\3\\"}/g" ${PACKAGED_TEMPLATE_NAME} > ${REGION_TEMPLATE_NAME}
+  """
+}
+
+runTemplateUpload = { s3Bucket, targetFilename, kmsKeyId ->
+  sh """aws s3 \
+    cp \
+    --grants read=uri=http://acs.amazonaws.com/groups/global/AuthenticatedUsers full=id=d66797f0708737692e7ba8205bb7ab577f37f8e026c0009f89c8a4d06346e3ca \
+    --sse aws:kms \
+    --sse-kms-key-id ${kmsKeyId} \
+    ${REGION_TEMPLATE_NAME} s3://${s3Bucket}/${targetFilename}
+    """
+}
+
+awsPipeline {
+  POD_NAMESPACE = 'cje-slaves-freestyle-dmz'
+  OPENSHIFT_NAMESPACE = 'cje-slaves-openshift-dmz'
+
+  def isGitHubMasterBranch
+  def isGitHubPullRequest
+  def isGitHubPullRequestToMaster
+  def isGitHubRelease
+  def hadLintTestError = false
+
+  dynamicDockerRegistry = "elilillyco-cirr-dynamic-docker-lc.jfrog.io"
+  bootStrapperImage = "${dynamicDockerRegistry}/bootstrapper:1.0.1"
+
+  registryToCredentialId = ["${dynamicDockerRegistry}": "default-docker-credentials"]
+  configureCredentials "${OPENSHIFT_NAMESPACE}": registryToCredentialId,
+                        "${POD_NAMESPACE}": registryToCredentialId
+
+  onFinish { deleteCredentials() }
+
+  runPod(POD_NAMESPACE) {
+    runSetup { abortPreviousBuilds() }
+
+    runContainer(bootStrapperImage) {
+      readAppConfig()
+      prepareEnterpriseImage()
+    }
+  }
+
+  runPod(POD_NAMESPACE) {
+    runContainer {
+
+      onFinish {
+        if (env.CHANGE_URL && hadLintTestError) {
+          withPipeline {
+            def API_URL = env.CHANGE_URL.toString().replace("https://github.com/", "https://api.github.com/repos/").replace("/pull/", "/issues/") + "/comments"
+            def apiAuthResults = readFile "apiAuth.txt"
+            def edgeAuthResults = readFile "edgeAuth.txt"
+            def apiAuthHtml = "<details><summary><b>functions/apiAuth</b></summary>\n\n```\n${apiAuthResults}\n```\n\n</details>"
+            def edgeAuthHtml = "<details><summary><b>functions/edgeAuth</b></summary>\n\n```\n${edgeAuthResults}\n```\n\n</details>"
+            def comment = JsonOutput.toJson("An error occurred while running code linting and automated tests. The output is below.\n${apiAuthHtml}\n${edgeAuthHtml}")
+
+            withCredentials([string(credentialsId: GitHub.GITHUB_CREDENTIALS_ID, variable: "GITHUB_TOKEN")]) {
+              sh "curl -v --fail -X POST -H 'Authorization: token ${env.GITHUB_TOKEN}' -H 'Content-Type: application/json' -d '{\"body\": ${comment}}' '${API_URL}'"
+            }
+          }
+        }
+      }
+
+      runStage("Setup") {
+        script {
+          withPipeline { checkout scm }
+          isGitHubMasterBranch = (pipeline.env.BRANCH_NAME == 'master')
+          isGitHubPullRequest = (env.CHANGE_BRANCH ? true : false)
+          isGitHubPullRequestToMaster = (isGitHubPullRequest && env.CHANGE_TARGET == "master")
+          isGitHubRelease = (env.TAG_NAME ? true : false)
+        }
+      }
+
+      runParallel("Linting & Testing") {
+        failFast = false
+
+        runTask("Lint & Test apiAuth") {
+          onFinish { withPipeline { archiveArtifacts "apiAuth.txt" } }
+          runStage("Lint & Test apiAuth") {
+            script {
+              withPipeline {
+                dir("functions/apiAuth") {
+                  sh """#!/bin/bash
+                  export NVM_DIR="/usr/local/nvm"
+                  . "${"\$NVM_DIR"}/nvm.sh"
+                  nvm use ${NODE_RUNTIME}
+                  npm install"""
+
+                  def lintReturnCode = sh returnStatus: true, script: """#!/bin/bash
+                  export NVM_DIR="/usr/local/nvm"
+                  . "${"\$NVM_DIR"}/nvm.sh"
+                  nvm use ${NODE_RUNTIME}
+                  set -o pipefail
+                  npm run lint 2>&1 | tee -a ../../apiAuth.txt"""
+                  def testReturnCode = sh returnStatus: true, script: """#!/bin/bash
+                  export NVM_DIR="/usr/local/nvm"
+                  . "${"\$NVM_DIR"}/nvm.sh"
+                  nvm use ${NODE_RUNTIME}
+                  set -o pipefail
+                  npm run test 2>&1 | tee -a ../../apiAuth.txt"""
+
+                  if(lintReturnCode > 0 || testReturnCode > 0) {
+                    hadLintTestError = true
+                    error "An error occurred during testing and linting"
+                  }
+
+                  sh "rm -rf node_modules"
+                  sh """#!/bin/bash
+                  export NVM_DIR="/usr/local/nvm"
+                  . "${"\$NVM_DIR"}/nvm.sh"
+                  nvm use ${NODE_RUNTIME}
+                  npm install --only=prod"""
+                }
+              }
+            }
+          }
+        }
+
+        runTask("Lint & Test edgeAuth") {
+          onFinish { withPipeline { archiveArtifacts "edgeAuth.txt" } }
+          runStage("Lint & Test edgeAuth") {
+            script {
+              withPipeline {
+                dir("functions/edgeAuth") {
+                  sh """#!/bin/bash
+                  export NVM_DIR="/usr/local/nvm"
+                  . "${"\$NVM_DIR"}/nvm.sh"
+                  nvm use ${NODE_RUNTIME}
+                  npm install"""
+                  
+                  def lintReturnCode = sh returnStatus: true, script: """#!/bin/bash
+                  export NVM_DIR="/usr/local/nvm"
+                  . "${"\$NVM_DIR"}/nvm.sh"
+                  nvm use ${NODE_RUNTIME}
+                  set -o pipefail
+                  npm run lint 2>&1 | tee -a ../../edgeAuth.txt"""
+                  def testReturnCode = sh returnStatus: true, script: """#!/bin/bash
+                  export NVM_DIR="/usr/local/nvm"
+                  . "${"\$NVM_DIR"}/nvm.sh"
+                  nvm use ${NODE_RUNTIME}
+                  set -o pipefail
+                  npm run test 2>&1 | tee -a ../../edgeAuth.txt"""
+
+                  if(lintReturnCode > 0 || testReturnCode > 0) {
+                    hadLintTestError = true
+                    error "An error occurred during testing and linting"
+                  }
+
+                  sh "rm -rf node_modules"
+                  sh """#!/bin/bash
+                  export NVM_DIR="/usr/local/nvm"
+                  . "${"\$NVM_DIR"}/nvm.sh"
+                  nvm use ${NODE_RUNTIME}
+                  npm install --only=prod"""
+                }
+              }
+            }
+          }
+        }
+      }
+
+      runBlock("AWS Deployment") {
+        when { isGitHubPullRequestToMaster || isGitHubMasterBranch || isGitHubRelease }
+
+        runBlock("Landing Zone") {
+          AWSCredentials.setupAwsCredentials pipeline: this, awsAccountId: LZ_AWS_ACCOUNT_NUMBER, serviceAccountCredentialId: LZ_CREDENTIALS_ID
+
+          onFinish {
+            env.AWS_ACCESS_KEY_ID = null
+            env.AWS_SECRET_ACCESS_KEY = null
+            env.AWS_SESSION_TOKEN = null
+          }
+
+          runStage("Package Templates for Landing Zone") {
+            script {
+              withPipeline {
+                AWSCredentials.withAwsCredentials {
+                  sh "aws sts get-caller-identity"
+                  sh "aws sts assume-role --role-arn '$LZ_ADDITIONAL_IAM_ROLE' --role-session-name 'cirr-aws-authenticators-deploy' > _awsCreds"
+
+                  def awsCredentials = readJSON file: "_awsCreds"
+                  env.AWS_ACCESS_KEY_ID = awsCredentials.Credentials.AccessKeyId
+                  env.AWS_SECRET_ACCESS_KEY = awsCredentials.Credentials.SecretAccessKey
+                  env.AWS_SESSION_TOKEN = awsCredentials.Credentials.SessionToken
+
+
+                  this.runCloudFormationPackage(LZ_S3_BUCKET, LZ_S3_PACKAGE_PREFIX, LZ_KMS_KEY_ID)
+                }
+              }
+            }
+          }
+
+          runStage("Deploy to Landing Zone Dev") {
+            when { isGitHubPullRequestToMaster }
+            script {
+              withPipeline {
+                AWSCredentials.withAwsCredentials {
+                  this.runTemplateUpload(LZ_S3_BUCKET, "${LZ_S3_TEMPLATE_PREFIX}/${DEV_TEMPLATE_NAME}", LZ_KMS_KEY_ID)
+                }
+              }
+            }
+          }
+
+          runStage("Deploy to Landing Zone QA") {
+            when { isGitHubMasterBranch }
+            script {
+              withPipeline {
+                AWSCredentials.withAwsCredentials {
+                  this.runTemplateUpload(LZ_S3_BUCKET, "${LZ_S3_TEMPLATE_PREFIX}/${QA_TEMPLATE_NAME}", LZ_KMS_KEY_ID)
+                }
+              }
+            }
+          }
+
+          runStage("Deploy to Landing Zone Prod") {
+            when { isGitHubRelease }
+            script {
+              withPipeline {
+                AWSCredentials.withAwsCredentials {
+                  this.runTemplateUpload(LZ_S3_BUCKET, "${LZ_S3_TEMPLATE_PREFIX}/${PROD_TEMPLATE_NAME}", LZ_KMS_KEY_ID)
+                  this.runTemplateUpload(LZ_S3_BUCKET, "${LZ_S3_TEMPLATE_PREFIX}/${LATEST_TEMPLATE_NAME}", LZ_KMS_KEY_ID)
+                  this.runTemplateUpload(LZ_S3_BUCKET, "${LZ_S3_TEMPLATE_PREFIX}/${env.TAG_NAME}.yaml", LZ_KMS_KEY_ID)
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

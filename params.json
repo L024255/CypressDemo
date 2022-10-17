@@ -1,0 +1,31 @@
+{
+    "Parameters": {
+      "DeployEnvironment": "prod",
+      "CloudFrontRequireAuth": "true",
+      "EmptyWebBucketOnDelete": "false",
+      "AppName": "sddio-ui",
+      "CertificateArn": "arn:aws:acm:us-east-1:347806715320:certificate/42085535-a53c-4f99-a01c-bf8d4201cba5",
+      "DomainAlias": "sddio.lilly.com",
+      "DistributionId": "E2V6A9AAX47YJ6",
+      "CostCenter": "100ACNF",
+      "CostCenterApprover": "DA38554",
+      "SystemOwner": "DA38554",
+      "SystemCustodian": "TC88497",
+      "PrimaryItContact": "C230968",
+      "Level1BusinessArea": "MDIT",
+      "DataClassification": "Yellow",
+      "Hipaa": "No"
+    },
+    "Tags": {
+      "ApplicationCI": "CI00000004632051",
+      "CostCenter": "100ACNF",
+      "CostCenterApprover": "DA38554",
+      "SystemOwner": "DA38554",
+      "SystemCustodian": "TC88497",
+      "PrimaryItContact": "C230968",
+      "Level1BusinessArea": "MDIT",
+      "DataClassification": "Yellow",
+      "Hipaa": "No"
+    },
+    "StackPolicy": {}
+  }

@@ -1,0 +1,118 @@
+.ant-table-expanded-row{
+  display: none;
+}
+.ant-table-expanded-row-fixed {
+  position: relative !important;
+  padding-left: 0;
+}
+.title-row, .title-row:hover {
+  background: #D5D2CA !important;
+}
+.title-row .ant-table-cell-fix-left, .title-row  .ant-table-cell-fix-right {
+  background: #D5D2CA;
+}
+.ant-table-cell-fix-left, .ant-table-cell-fix-right {
+  z-index: 9;
+}
+td.ant-table-cell-fix-right {
+  border-right: none !important;
+}
+.even-row {
+  background: #F8F8F9;
+}
+.ant-table{
+  font-size: 12px;
+}
+.ant-table-thead > tr > th {
+  background: #fff;
+  color: #82786F;
+}
+.ant-table-thead tr th {
+  padding: 11px 16px;
+}
+.ant-table-cell {
+  padding: 3px 16px !important;
+}
+/**
+MDITEVER-6877
+**/
+.ant-table-body::-webkit-scrollbar-thumb {
+  background: #D52B1E !important;
+  border-radius: 10px !important;
+}
+.ant-table-body::-webkit-scrollbar {
+  background: rgba(0, 0, 0, 0.1) !important;
+  border: 1px solid rgb(240, 240, 240);
+  height: 7px !important;
+  width: 7px !important;
+}
+.ant-table-tbody .header-row:nth-child(2) td {
+  position: sticky;
+  background: #fff;
+  top: 0px;
+  z-index: 10;
+}
+.ant-table-tbody .header-row:nth-child(3) td {
+  position: sticky;
+  background: #fff;
+  top: 37px;
+  z-index: 10;
+}
+.ant-table-tbody .header-row:nth-child(4) td {
+  position: sticky;
+  background: #fff;
+  top: 74px;
+  z-index: 10;
+}
+.ant-table-tbody .header-row:nth-child(5) td {
+  position: sticky;
+  background: #fff;
+  top: 111px;
+  z-index: 10;
+}
+
+.ant-table-tbody .hidden-row{
+  display: none;
+}
+
+.ant-table-tbody .header-row:nth-child(2) td:nth-child(1),
+.ant-table-tbody .header-row:nth-child(3) td:nth-child(1),
+.ant-table-tbody .header-row:nth-child(4) td:nth-child(1),
+.ant-table-tbody .header-row:nth-child(5) td:nth-child(1)
+{
+  z-index: 11;
+} 
+th.ant-table-cell.ant-table-cell-fix-left.ant-table-cell-fix-left-last {
+  padding-left: 30px !important;
+}
+.content-column {
+  border-right: none !important;
+}
+
+th.content-column div .popover-alias {
+  display: none;
+}
+th.content-column:hover div .popover-alias {
+  display: block;
+}
+th.add-button-column {
+  color: rgba(130, 120, 111, 0.4) !important;
+  cursor: pointer;
+}
+th.add-button-column-disabled {
+  color: rgba(130, 120, 111, 0.4) !important;
+  cursor: default;
+}
+.ant-table-thead > tr > th[colspan]:not([colspan='1']) {
+  text-align: left;
+}
+.MuiCheckbox-colorSecondary.Mui-checked {
+  color: #00AF3F;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+}
+.MuiCheckbox-root.MuiCheckbox-root svg {
+  width: 18px;
+  height: 18px;
+}

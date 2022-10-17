@@ -1,0 +1,237 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: "AWS::Serverless-2016-10-31"
+Description: >
+  dhai-sddio-common
+Parameters:
+  AppName:
+    Type: String
+    Default: "dhai-sddio-common"
+  DistributionId:
+    Type: String
+    Default: ''
+  CloudFrontAccessPrefix:
+    Type: String
+    Default: PUBLIC
+    AllowedPattern: "[a-zA-Z0-9-]+"
+    ConstraintDescription: "must contain only alphanumerics and hyphens and cannot be empty"
+  FunctionCurrentVersionAlias:
+    Type: String
+    Default: live
+  DeployEnvironment:
+    Type: String
+  DomainAlias:
+    Type: String
+    Default: ''
+  CertificateArn:
+    Type: String
+    Default: ''
+  CloudFrontPriceClass:
+    Type: String
+    Default: PriceClass_100
+    AllowedValues:
+      - PriceClass_100
+      - PriceClass_200
+      - PriceClass_All
+  CloudFrontRequireAuth:
+    Description: >
+      Add a Lambda@Edge authorizer to the CloudFront distribution for authenticated access. 
+      If this is set to true, you must create your stack in us-east-1 (N. Virginia).
+    Type: String
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+  EmptyWebBucketOnDelete:
+    Description: Empty the web bucket on stack deletion, which allows the bucket to be deleted.
+    Type: String
+  CostCenter:
+    Type: String
+    Default: "100ACNF"
+  CostCenterApprover:
+    Type: String
+    Default: "Cost Center Approver User ID"
+  SystemOwner:
+    Type: String
+    Default: "System Owner User ID"
+  SystemCustodian:
+    Type: String
+    Default: "System Custodian User ID"
+  PrimaryItContact:
+    Type: String
+    Default: "Primary IT Contact User ID"
+  Level1BusinessArea:
+    Type: String
+    Default: "Business Area ex. GIS IDS"
+  DataClassification:
+    Type: String
+    Default: "TBD"
+    AllowedValues:
+      - "Green"
+      - "Yellow"
+      - "Orange"
+      - "Red"
+      - "TBD"
+  Hipaa:
+    Type: String
+    Default: "No"
+    AllowedValues:
+      - "Yes"
+      - "No"
+      - "TBD"
+
+Mappings:
+  #
+  # For each allowed "DeployEnvironment" above different values are specified that can be used throughout the template
+  # DeploymentPreference values: https://github.com/awslabs/serverless-application-model/blob/master/docs/safe_lambda_deployments.rst
+  EnvironmentConfiguration:
+    dev:
+      FunctionDeploymentPreference: AllAtOnce
+      GatewayStageName: Dev
+      Subdomain: Unused
+      EnvHostedZoneNamePrefix: dev.
+    qa:
+      FunctionDeploymentPreference: AllAtOnce
+      GatewayStageName: QA
+      Subdomain: api.qa
+      EnvHostedZoneNamePrefix: qa.
+    prod:
+      FunctionDeploymentPreference: Canary10Percent5Minutes
+      GatewayStageName: Prod
+      Subdomain: api
+      EnvHostedZoneNamePrefix: ""
+
+Globals:
+  Function:
+    Timeout: 3
+
+Conditions:
+  CloudFrontRequireAuth: !Equals [!Ref CloudFrontRequireAuth, "true"]
+  hasAlias: !Not [!Equals [!Ref DomainAlias, '']]
+  hasSSLCertARN: !Not [!Equals [!Ref CertificateArn, '']]  
+
+Resources:
+  WebsiteCloudFront:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        DefaultCacheBehavior:
+          Compress: true
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          ForwardedValues:
+            QueryString: false
+          ViewerProtocolPolicy: redirect-to-https
+          TargetOriginId: S3WebsiteOrigin
+          LambdaFunctionAssociations:
+            - !If
+              - CloudFrontRequireAuth
+              - EventType: viewer-request
+                LambdaFunctionARN: !GetAtt CirrusAuthenticators.Outputs.EdgeAuthFunctionVersion
+              - !Ref AWS::NoValue
+        DefaultRootObject: index.html
+        Enabled: true
+        Origins:
+          - DomainName: !Sub
+              - "${BucketName}.s3.amazonaws.com"
+              - { BucketName: !Ref WebS3Bucket }
+            Id: S3WebsiteOrigin
+            OriginPath: !Join
+              - ""
+              - - /
+                - !Ref CloudFrontAccessPrefix
+            S3OriginConfig:
+              OriginAccessIdentity: !Join
+                - ""
+                - - origin-access-identity/cloudfront/
+                  - !Ref CloudFrontAccessIdentity
+        PriceClass: !Ref CloudFrontPriceClass
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: "/index.html"
+        Aliases:
+          Fn::If:
+            - hasAlias
+            - - Ref: DomainAlias
+            - Ref: 'AWS::NoValue'
+        ViewerCertificate:
+          Fn::If:
+            - hasSSLCertARN
+            - SslSupportMethod: sni-only
+              AcmCertificateArn:
+                Ref: CertificateArn
+              MinimumProtocolVersion: TLSv1.2_2021
+            - Ref: 'AWS::NoValue'
+
+  CloudFrontAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub "${AppName} CloudFront Origin Identity"
+
+  WebS3Bucket:
+    Type: Custom::LillyBucketBuilder
+    Properties:
+      ServiceToken: !ImportValue RVM-LambdaARN
+      BucketNamePrefix: !Ref AppName
+      BucketAccess:
+        ReadWriteAccess:
+          "*":
+            - Fn::ImportValue: !Sub "${AWS::StackName}-CodeBuildRoleArn"
+            - Fn::ImportValue: !Sub "${AWS::StackName}-CloudFormationRoleArn"
+        PermissionScopes:
+          Account: false
+      CloudFrontAccess:
+        CanonicalUser: !GetAtt "CloudFrontAccessIdentity.S3CanonicalUserId"
+        Prefix: !Ref CloudFrontAccessPrefix
+      BucketConfiguration:
+        EmptyBucketOnDelete: !Ref EmptyWebBucketOnDelete
+      Tags:
+        CostCenter: !Ref CostCenter
+        CostCenterApprover: !Ref CostCenterApprover
+        SystemOwner: !Ref SystemOwner
+        SystemCustodian: !Ref SystemCustodian
+        PrimaryItContact: !Ref PrimaryItContact
+        Level1BusinessArea: !Ref Level1BusinessArea
+        DataClassification: !Ref DataClassification
+        Hipaa: !Ref Hipaa
+
+  CirrusAuthenticators:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: services/authenticator/template.yaml
+      Parameters:
+        LogLevel: DEBUG # Default is WARN
+        ApiAuthExpectedClientId: "544ef616-7829-4af6-9bd8-603ceb814b01"
+        ApiAuthExpectedAudience: "29cd31e5-0ac5-441c-b435-7ea0c8709dde" # Use Azure AD app client ID
+        ApiAuthExpectedIssuer: "https://login.microsoftonline.com/18a59a81-eea8-4c30-948a-d8824cdc2580/v2.0" # Azure AD
+        EdgeAuthCloudFrontDistributionId: !Ref DistributionId # Must be hardcoded to prevent circular dependency
+        PermissionsBoundary: "TRUE"
+        CostCenter: !Ref CostCenter
+        CostCenterApprover: !Ref CostCenterApprover
+        SystemOwner: !Ref SystemOwner
+        SystemCustodian: !Ref SystemCustodian
+        PrimaryItContact: !Ref PrimaryItContact
+        Level1BusinessArea: !Ref Level1BusinessArea
+        DataClassification: !Ref DataClassification
+        Hipaa: !Ref Hipaa
+
+Outputs:
+  CloudFrontUrl:
+    Value: !Sub
+      - "https://${Domain}"
+      - { Domain: !GetAtt "WebsiteCloudFront.DomainName" }
+  CloudFrontId:
+    Value: !Ref WebsiteCloudFront
+  WebBucket:
+    Description: Location to put SPA static files
+    Value: !Join
+      - ""
+      - - !Ref WebS3Bucket
+        - "/"
+        - !Ref CloudFrontAccessPrefix
+  AppName:
+    Description: "The name of the deployed application. A derivative of the repo name..."
+    Value: !Ref AppName

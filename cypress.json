@@ -1,0 +1,14 @@
+{
+    "baseUrl": "http://localhost:3000",
+    "ignoreTestFiles": "**/examples/*",
+    "viewportHeight": 760,
+    "viewportWidth": 1080,
+    "testFiles": "**/*.feature",
+    "retries": {
+      "runMode": 2,
+      "openMode": 1
+    },
+    "env": {
+      "baseUrl": "http://localhost:3000"
+    }
+}

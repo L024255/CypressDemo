@@ -1,0 +1,95 @@
+{
+  "name": "dhai_sddio_ui",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@apollo/client": "^3.3.20",
+    "@inovua/reactdatagrid-community": "^4.4.2",
+    "@material-ui/core": "^4.11.4",
+    "@material-ui/icons": "^4.11.2",
+    "@material-ui/lab": "^4.0.0-alpha.58",
+    "@react-pdf/renderer": "^2.1.1",
+    "@types/js-cookie": "^2.2.6",
+    "@types/node": "^12.0.0",
+    "@types/react": "^17.0.0",
+    "@types/react-beautiful-dnd": "^13.1.2",
+    "@types/react-dom": "^17.0.0",
+    "@types/react-input-mask": "^3.0.1",
+    "antd": "^4.16.1",
+    "axios": "^0.21.2",
+    "clsx": "^1.1.1",
+    "fetch-intercept": "^2.4.0",
+    "formik": "^2.2.9",
+    "graphql": "^15.5.1",
+    "js-cookie": "^2.2.1",
+    "jwt-decode": "^3.1.2",
+    "lodash": "^4.17.21",
+    "moment": "^2.29.1",
+    "react": "^16.12.0",
+    "react-app-polyfill": "^2.0.0",
+    "react-beautiful-dnd": "^13.1.0",
+    "react-dom": "^16.12.0",
+    "react-input-mask": "^2.0.4",
+    "react-router-dom": "^5.2.0",
+    "react-scripts": "4.0.3",
+    "react-scrollbars-custom": "^4.0.27",
+    "web-vitals": "^1.0.1",
+    "yup": "^0.32.9"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "lint": "npx eslint 'src/**/*'",
+    "lint:fix": "npx eslint --fix 'src/**/*'",
+    "precy:components": "rm -rf ./.next/cache",
+    "cy:components": "cypress open-ct",
+    "cypress:open":"./node_modules/.bin/cypress open",
+    "test:e2e":"./node_modules/.bin/cypress run",
+    "cy:run": "cypress run"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@testing-library/react": "12.1.2",
+    "@types/enzyme": "^3.10.8",
+    "@types/jest": "^26.0.23",
+    "@types/lodash": "^4.14.168",
+    "@types/react": "^16.9.0",
+    "@types/react-dom": "^16.9.0",
+    "@types/react-router-dom": "^5.1.3",
+    "cypress": "^9.5.4",
+    "cypress-cucumber-preprocessor": "^4.3.1",
+    "enzyme": "^3.11.0",
+    "enzyme-adapter-react-16": "^1.15.6",
+    "enzyme-to-json": "^3.6.2",
+    "eslint-config-prettier": "^6.11.0",
+    "eslint-plugin-prettier": "^3.1.3",
+    "jest-fetch-mock": "^3.0.3",
+    "json-server": "^0.16.1",
+    "prettier": "2.1.2",
+    "pretty-quick": "^3.0.0",
+    "ts-jest": "^26.4.4",
+    "ts-node": "^9.0.0",
+    "typescript": "^4.1.2"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "pretty-quick --staged"
+    }
+  },
+  "cypress-cucumber-preprocessor": {
+    "nonGlobalStepDefinitions": true
+    }
+}

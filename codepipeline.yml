@@ -1,0 +1,1018 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Modified Lilly CI/CD Pipeline v2. This template creates a pipeline with a
+  GitHub source stage, CodeBuild Build stage, and optionally a CodeBuild Test stage.
+
+
+Parameters:
+  ProjectName:
+    Description: The name of the project.
+    Type: String
+    MaxLength: 42
+    AllowedPattern: "[a-zA-Z][A-Za-z0-9-]*"
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters or dashes (-).
+  ParameterFileName:
+    Description: The name of the template configuration file (must be added to artifacts in buildspec file).
+    Type: String
+    Default: params.dev.json
+  CodeBuildImage:
+    Description: The container image CodeBuild uses to run the pre-deploy and post-deploy buildspecs.
+    Type: String
+    Default: aws/codebuild/standard:5.0
+    AllowedValues:
+      - aws/codebuild/amazonlinux2-x86_64-standard:3.0
+      - aws/codebuild/amazonlinux2-x86_64-standard:2.0
+      - aws/codebuild/amazonlinux2-aarch64-standard:1.0
+      - aws/codebuild/standard:5.0
+      - aws/codebuild/standard:4.0
+      - aws/codebuild/standard:3.0
+  BuildspecPath:
+    Description: The relative path to the buildspec file.
+    Type: String
+    Default: buildspec.yml
+  CodeBuildComputeType:
+    Description: The container size for the pre-deployment CodeBuild project. https://docs.aws.amazon.com/codebuild/latest/userguide/build-env-ref-compute-types.html
+    Type: String
+    Default: BUILD_GENERAL1_SMALL
+    AllowedValues:
+      - BUILD_GENERAL1_SMALL  # Use up to 3 GB memory and 2 vCPUs for builds.
+      - BUILD_GENERAL1_MEDIUM # Use up to 7 GB memory and 4 vCPUs for builds.
+      - BUILD_GENERAL1_LARGE  # Use up to 15 GB memory and 8 vCPUs for builds.
+  PostDeployBuildspecPath:
+    Description: The relative path to the post-deployment buildspec file. Blank if you don't need a post-deployment build.
+    Type: String
+    Default: post-deploy-buildspec.yml
+  PostDeployCodeBuildComputeType:
+    Description: The container size for the post-deployment CodeBuild project. https://docs.aws.amazon.com/codebuild/latest/userguide/build-env-ref-compute-types.html
+    Type: String
+    Default: BUILD_GENERAL1_SMALL
+    AllowedValues:
+      - BUILD_GENERAL1_SMALL  # Use up to 3 GB memory and 2 vCPUs for builds.
+      - BUILD_GENERAL1_MEDIUM # Use up to 7 GB memory and 4 vCPUs for builds.
+      - BUILD_GENERAL1_LARGE  # Use up to 15 GB memory and 8 vCPUs for builds.
+  PostBackTestResults:
+    Description: Adds a CodeBuild project to post-back buildspec results to GitHub.
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+  TemplatePath:
+    Description: The relative path to the CloudFormation template file.
+    Type: String
+    Default: template.yml
+  CreateGitHubRepoFromBlueprint:
+    Description: Creates a new GitHub repo and seeds it with one of EDAT's blueprints. 'RepositoryName' must not reference an existing repository.
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "false"
+      - "SPA"
+      - "SAM"
+      - "CFN_ONLY"
+      - "FARGATE"
+      - "FULL_STACK"
+      - "SERVERLESS"
+      - "EC2_COTS"
+      - "COGNITO"
+      - "DYNAMODB"
+      - "RDS"
+      - "DOCUMENTDB"
+      - "EFS"
+      - "ELASTICACHE"
+      - "ELASTICSEARCH"
+      - "FSX"
+      - "NEPTUNE"
+      - "CASSANDRA"
+  RepositoryName:
+    Description: GitHub repository name.
+    Type: String
+  RepositoryBranch:
+    Description: GitHub repository branch name (master, main, dev, etc.).
+    Type: String
+  GitHubOwner:
+    Type: String
+    Default: EliLillyCo
+  GitHubSecret:
+    Description: This should be a 32 character random string.
+    Type: String
+    NoEcho: true
+  GitHubPAT:
+    Description: GitHub Personal Access Token that has repo and admin:repo_hook scopes. 
+    Type: String
+    NoEcho: true
+  CreateECRRepo:
+    Description: Adds an ECR repository that the CodeBuild jobs and CloudFormation can access.
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+  Custodian:
+    Description: System ID of the project's custodian.
+    Type: String
+  PrimaryITContact:
+    Description: System ID of the project's primary IT contact.
+    Type: String
+  SystemOwner:
+    Description: System ID of the project's system owner.
+    Type: String
+  CostCenter:
+    Description: Cost center ID.
+    Type: String
+  CostCenterApprover:
+    Description: System ID of the cost center approver.
+    Type: String
+  Level1BusinessArea:
+    Description: Business area of the project.
+    Type: String
+  DataClassification:
+    Description: Data classification of the project.
+    Type: String
+    AllowedValues:
+      - Green
+      - Yellow
+      - Orange
+      - Red
+  Environment:
+    Description: Environment where the project lives.
+    Type: String
+    AllowedValues:
+      - Dev
+      - QA
+      - Prod
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Pipeline Configuration
+        Parameters:
+          - ProjectName
+          - ParameterFileName
+          - CodeBuildImage
+          - BuildspecPath
+          - CodeBuildComputeType
+          - PostDeployBuildspecPath
+          - PostDeployCodeBuildComputeType
+          - TemplatePath
+      - Label:
+          default: Repository Information
+        Parameters:
+          - CreateGitHubRepoFromBlueprint
+          - RepositoryName
+          - RepositoryBranch
+          - GitHubOwner
+          - GitHubSecret
+          - GitHubPAT
+          - PostBackTestResults
+      - Label:
+          default: Global Resources
+        Parameters:
+          - CreateECRRepo
+      - Label:
+          default: Pipeline Information
+        Parameters:
+          - Custodian
+          - SystemOwner
+          - PrimaryITContact
+          - CostCenter
+          - CostCenterApprover
+          - Level1BusinessArea
+          - DataClassification
+          - Environment
+
+    ParameterLabels:
+      ProjectName:
+        default: Project Name
+      ParameterFileName:
+        default: Parameter File Name
+      CodeBuildImage:
+        default: CodeBuild Image
+      BuildspecPath:
+        default: Buildspec Path
+      CodeBuildComputeType:
+        default: CodeBuild Compute Type
+      PostDeployBuildspecPath:
+        default: Post-deployment Buildspec Path
+      PostDeployCodeBuildComputeType:
+        default: Post-deployment CodeBuild Compute Type
+      TemplatePath:
+        default: Template Path
+      CreateGitHubRepoFromBlueprint:
+        default: Create GitHub Repo from Blueprint
+      RepositoryName:
+        default: Repository Name
+      RepositoryBranch:
+        default: Repository Branch
+      GitHubOwner:
+        default: GitHub Owner
+      GitHubSecret:
+        default: GitHub Secret
+      GitHubPAT:
+        default: GitHub Personal Access Token that has repo and admin:repo_hook scopes. 
+      CreateECRRepo:
+        default: Create ECR repository
+      PostBackTestResults:
+        default: Post-back test results to GitHub
+      Custodian:
+        default: System Custodian
+      SystemOwner:
+        default: System Owner
+      PrimaryITContact:
+        default: Primary IT Contact
+      CostCenter:
+        default: Cost Center
+      CostCenterApprover:
+        default: Cost Center Approver
+      Level1BusinessArea:
+        default: Level 1 Business Area
+      DataClassification:
+        default: Data Classification
+
+Conditions:
+  OtherRegions: !Not [!Equals [!Ref 'AWS::Region', "us-east-2"]]
+  ShouldRunPostDeployBuild: !Not [ !Equals [ !Ref PostDeployBuildspecPath, "" ] ]
+  PostBackTestResults: !Equals [ !Ref PostBackTestResults, "true" ]
+  CreateECRRepo: !Equals [!Ref CreateECRRepo, "true" ]
+  CreateGitHubRepo: !Not [!Equals [!Ref CreateGitHubRepoFromBlueprint, "false" ] ]
+
+Mappings:
+  EdatPipelineV2:
+    Telemetry:
+      DefaultArn: arn:aws:sqs:us-east-1:909350678585:PipelineTelemetry
+      DEV: arn:aws:sqs:us-east-1:933088013595:PipelineTelemetry
+      QA: arn:aws:sqs:us-east-1:876128744739:PipelineTelemetry
+      DLZ: arn:aws:sqs:us-east-1:159571097500:PipelineTelemetry
+  TemplateProperties:
+    Metadata:
+      Name: "pipeline-v2"
+      Version: "2.18.0"
+      PrimaryItContact: "c276669"
+      Repo: "https://github.com/EliLillyCo/lilly-shared-templates"
+      TemplateLocation: "https://lly-templates.s3.us-east-2.amazonaws.com/shared/cloudformation/deployment_pipelines_v2/cfn-pipeline.yaml"
+
+
+Resources:
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      PermissionsBoundary: !Sub arn:aws:iam::${AWS::AccountId}:policy/LZ-IAM-Boundary
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Tags:
+        - Key: EDATProduct
+          Value: CI/CD Pipeline v2.0
+        - Key: EDATProductVersion
+          Value: !FindInMap [ TemplateProperties, Metadata, Version ]
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: Custodian
+          Value: !Ref Custodian
+        - Key: SystemOwner
+          Value: !Ref SystemOwner
+        - Key: PrimaryITContact
+          Value: !Ref PrimaryITContact
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: CostCenterApprover
+          Value: !Ref CostCenterApprover
+        - Key: Level1BusinessArea
+          Value: !Ref Level1BusinessArea
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: Environment
+          Value: !Ref Environment
+      Policies:
+        - PolicyName: AWS-CodePipeline-Service-Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:*
+                  - codebuild:*
+                  - codecommit:*
+                  - codedeploy:*
+                  - iam:PassRole
+                  - kms:Decrypt
+                  - s3:*
+                Resource: "*"
+
+  CloudFormationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      PermissionsBoundary: !Sub arn:aws:iam::${AWS::AccountId}:policy/LZ-IAM-Boundary
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          Effect: Allow
+          Principal:
+            Service: cloudformation.amazonaws.com
+          Action: sts:AssumeRole
+      Tags:
+        - Key: EDATProduct
+          Value: CI/CD Pipeline v2.0
+        - Key: EDATProductVersion
+          Value: !FindInMap [ TemplateProperties, Metadata, Version ]
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: Custodian
+          Value: !Ref Custodian
+        - Key: SystemOwner
+          Value: !Ref SystemOwner
+        - Key: PrimaryITContact
+          Value: !Ref PrimaryITContact
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: CostCenterApprover
+          Value: !Ref CostCenterApprover
+        - Key: Level1BusinessArea
+          Value: !Ref Level1BusinessArea
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: Environment
+          Value: !Ref Environment
+      Policies:
+        - PolicyName: "AWS-CloudFormation-Service-Policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - acm:*
+                  - apigateway:*
+                  - application-autoscaling:*
+                  - appsync:*
+                  - athena:*
+                  - autoscaling:*
+                  - cassandra:*
+                  - cloudformation:*
+                  - cloudfront:*
+                  - cloudwatch:*
+                  - codebuild:*
+                  - codecommit:*
+                  - codedeploy:*
+                  - codepipeline:*
+                  - cognito-identity:*
+                  - cognito-idp:*
+                  - datapipeline:*
+                  - dax:*
+                  - dms:*
+                  - dynamodb:*
+                  - ec2:*
+                  - ecr:*
+                  - ecs:*
+                  - elasticache:*
+                  - elasticbeanstalk:*
+                  - elasticfilesystem:*
+                  - elasticloadbalancing:*
+                  - elasticloadbalancingv2:*
+                  - elasticmapreduce:*
+                  - es:*
+                  - events:*
+                  - fsx:*
+                  - glue:*
+                  - iam:*
+                  - imagebuilder:*
+                  - iot:*
+                  - kinesis:*
+                  - kms:*
+                  - lambda:*
+                  - logs:*
+                  - opsworks:*
+                  - rds:*
+                  - redshift:*
+                  - route53:*
+                  - s3:*
+                  - secretsmanager:*
+                  - servicediscovery:*
+                  - sns:*
+                  - sqs:*
+                  - ssm:*
+                  - states:*
+                  - tag:*
+                  - xray:*
+                Resource: "*"
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      PermissionsBoundary: !Sub arn:aws:iam::${AWS::AccountId}:policy/LZ-IAM-Boundary
+      Description: !Sub "CodeBuild execution role used for the ${ProjectName} pipeline"
+      Tags:
+        - Key: EDATProduct
+          Value: CI/CD Pipeline v2.0
+        - Key: EDATProductVersion
+          Value: !FindInMap [ TemplateProperties, Metadata, Version ]
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: Custodian
+          Value: !Ref Custodian
+        - Key: SystemOwner
+          Value: !Ref SystemOwner
+        - Key: PrimaryITContact
+          Value: !Ref PrimaryITContact
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: CostCenterApprover
+          Value: !Ref CostCenterApprover
+        - Key: Level1BusinessArea
+          Value: !Ref Level1BusinessArea
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: Environment
+          Value: !Ref Environment
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          Effect: Allow
+          Principal:
+            Service: codebuild.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+        - PolicyName: "AWS-CodeBuild-Service-Policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:DescribeStacks
+                  - cloudformation:GetTemplate
+                  - cloudformation:ListExports
+                  - cloudformation:ListStackResources
+                  - cloudformation:ValidateTemplate
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetDistributionConfig
+                  - cloudfront:UpdateDistribution
+                  - codeartifact:CreateRepository
+                  - codeartifact:DescribeDomain
+                  - codeartifact:GetAuthorizationToken
+                  - codeartifact:GetDomainPermissionsPolicy
+                  - codeartifact:GetRepositoryEndpoint
+                  - codeartifact:ListRepositoriesInDomain
+                  - codeartifact:ReadFromRepository
+                  - codebuild:BatchPutTestCases
+                  - codebuild:CreateReport
+                  - codebuild:CreateReportGroup
+                  - codebuild:UpdateReport
+                  - codecommit:*
+                  - ecr:DescribeImages
+                  - ecr:GetAuthorizationToken
+                  - ecs:RunTask
+                  - ecs:UpdateService
+                  - glue:BatchGetCrawlers
+                  - glue:GetCrawler*
+                  - glue:GetJob
+                  - glue:GetJobRun*
+                  - glue:ListCrawlers
+                  - glue:ListJobs
+                  - glue:StartCrawler*
+                  - glue:StartJobRun
+                  - glue:StopCrawler*
+                  - glue:UpdateCrawler*
+                  - iam:PassRole
+                  - kms:Decrypt
+                  - lambda:InvokeFunction
+                  - lambda:UpdateFunctionConfiguration
+                  - logs:*
+                  - s3:Get*
+                  - s3:List*
+                  - s3:Put*
+                  - secretsmanager:GetSecretValue
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                  - ssm:GetParametersByPath
+                  - ssm:PutParameter
+                  - sts:GetServiceBearerToken
+                Resource: "*"
+
+  ServiceLinkedRole:
+    Type: Custom::LillyServiceLinkedRole
+    Properties:
+      ServiceToken: !ImportValue RVM-LambdaARN
+      ServiceName: codestar-notifications
+      Tags:
+        Environment: !Ref Environment
+        DataClassification: !Ref DataClassification
+
+  ArtifactBucket:
+    Type: Custom::LillyBucketBuilder
+    Properties:
+      ServiceToken: !ImportValue RVM-LambdaARN
+      BucketNamePrefix: pipeline-artifacts
+      BucketAccess:
+        PermissionScopes:
+          Account: True
+      BucketConfiguration:
+        EmptyBucketOnDelete: true
+      Tags:
+        EDATProduct: CI/CD Pipeline v2.0
+        EDATProductVersion: !FindInMap [ TemplateProperties, Metadata, Version ]
+        ProjectName: !Ref ProjectName
+        SystemOwner: !Ref SystemOwner
+        SystemCustodian: !Ref Custodian
+        PrimaryItContact: !Ref PrimaryITContact
+        CostCenter: !Ref CostCenter
+        Environment: !Ref Environment
+        DataClassification: !Ref DataClassification
+
+  GitHubRepo:
+    Condition: CreateGitHubRepo
+    Type: AWS::CodeStar::GitHubRepository
+    DeletionPolicy: Retain
+    Properties:
+      Code:
+        S3:
+          Bucket: "lly-templates"
+          Key: !Sub "shared/cloudformation/deployment_pipelines_v2/blueprints/${CreateGitHubRepoFromBlueprint}.zip"
+      EnableIssues: True
+      IsPrivate: True
+      RepositoryAccessToken: !Ref GitHubPAT
+      RepositoryDescription: !Sub "This repository was created based on the ${CreateGitHubRepoFromBlueprint} blueprint provided by EDAT"
+      RepositoryName: !Ref RepositoryName
+      RepositoryOwner: !Ref GitHubOwner
+
+  ECRRepository:
+    Condition: CreateECRRepo
+    Type: AWS::ECR::Repository
+    Properties:
+      ImageScanningConfiguration:
+        ScanOnPush: "true"
+      RepositoryPolicyText:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: Allow-All-Access-For-CodeBuild
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt CodeBuildRole.Arn
+            Action:
+             - ecr:*
+      Tags:
+        - Key: EDATProduct
+          Value: CI/CD Pipeline v2.0
+        - Key: EDATProductVersion
+          Value: !FindInMap [ TemplateProperties, Metadata, Version ]
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: Custodian
+          Value: !Ref Custodian
+        - Key: SystemOwner
+          Value: !Ref SystemOwner
+        - Key: PrimaryITContact
+          Value: !Ref PrimaryITContact
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: CostCenterApprover
+          Value: !Ref CostCenterApprover
+        - Key: Level1BusinessArea
+          Value: !Ref Level1BusinessArea
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: Environment
+          Value: !Ref Environment
+
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "${AWS::StackName}-PreDeploy"
+      Artifacts:
+          Type: CODEPIPELINE
+      Environment:
+        ComputeType: !Ref CodeBuildComputeType
+        Image: !Ref CodeBuildImage
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: S3_DEPLOY_BUCKET
+            Value: !Ref ArtifactBucket
+          - Name: TEMPLATE_PATH
+            Value: !Ref TemplatePath
+          - Name: PARAMETER_FILE_NAME
+            Value: !Ref ParameterFileName
+          - Name: STACK_NAME
+            Value: !Sub "${AWS::StackName}-deployment"
+          - Name: ACCOUNT_ID
+            Value: !Ref AWS::AccountId
+          - Name: ENVIRONMENT
+            Value: !Ref Environment
+          - Name: ECR_REPOSITORY_NAME
+            Value: !If [CreateECRRepo, !Ref ECRRepository, '']
+          - Name: ECR_REPOSITORY_ARN
+            Value: !If [CreateECRRepo, !GetAtt ECRRepository.Arn, '']
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Ref BuildspecPath
+      Tags:
+        - Key: EDATProduct
+          Value: CI/CD Pipeline v2.0
+        - Key: EDATProductVersion
+          Value: !FindInMap [ TemplateProperties, Metadata, Version ]
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: Custodian
+          Value: !Ref Custodian
+        - Key: SystemOwner
+          Value: !Ref SystemOwner
+        - Key: PrimaryITContact
+          Value: !Ref PrimaryITContact
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: CostCenterApprover
+          Value: !Ref CostCenterApprover
+        - Key: Level1BusinessArea
+          Value: !Ref Level1BusinessArea
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: Environment
+          Value: !Ref Environment
+
+  CodeBuildProjectPR:
+    Condition: PostBackTestResults
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "${AWS::StackName}-PrPostBack"
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        ComputeType: !Ref CodeBuildComputeType
+        Image: !Ref CodeBuildImage
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: S3_DEPLOY_BUCKET
+            Value: !Ref ArtifactBucket
+          - Name: TEMPLATE_PATH
+            Value: !Ref TemplatePath
+          - Name: PARAMETER_FILE_NAME
+            Value: !Ref ParameterFileName
+          - Name: STACK_NAME
+            Value: !Sub "${AWS::StackName}-deployment"
+          - Name: ACCOUNT_ID
+            Value: !Ref AWS::AccountId
+          - Name: ENVIRONMENT
+            Value: !Ref Environment
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Source:
+        Type: GITHUB
+        Auth:
+          Type: OAUTH
+        Location: !Sub "https://github.com/${GitHubOwner}/${RepositoryName}.git"
+        GitCloneDepth: 1
+        ReportBuildStatus: true
+        BuildSpec: !Ref BuildspecPath
+      SecondarySources:
+        - Type: S3
+          Location: !If
+            - OtherRegions
+            - !Sub "lly-templates--${AWS::Region}/code/test-resources/cfn-lint-rules.zip"
+            - "lly-templates/code/test-resources/cfn-lint-rules.zip"
+          SourceIdentifier: LintRules
+      Triggers:
+        Webhook: true
+        FilterGroups:
+          - - ExcludeMatchedPattern: false
+              Pattern: PULL_REQUEST_CREATED, PULL_REQUEST_UPDATED
+              Type: EVENT
+            - Type: BASE_REF
+              Pattern: !Sub "^refs/heads/${RepositoryBranch}$"
+              ExcludeMatchedPattern: false
+      Tags:
+        - Key: EDATProduct
+          Value: CI/CD Pipeline v2.0
+        - Key: EDATProductVersion
+          Value: !FindInMap [ TemplateProperties, Metadata, Version ]
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: Custodian
+          Value: !Ref Custodian
+        - Key: SystemOwner
+          Value: !Ref SystemOwner
+        - Key: PrimaryITContact
+          Value: !Ref PrimaryITContact
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: CostCenterApprover
+          Value: !Ref CostCenterApprover
+        - Key: Level1BusinessArea
+          Value: !Ref Level1BusinessArea
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: Environment
+          Value: !Ref Environment
+
+  CodeBuildSourceCredential:
+    Type: Custom::LillyCodeBuildSourceCredential
+    Properties:
+      ServiceToken: !ImportValue RVM-LambdaARN
+      GitHubPAT: !Ref GitHubPAT
+
+  PostDeployCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Condition: ShouldRunPostDeployBuild
+    Properties:
+      Name: !Sub "${AWS::StackName}-PostDeploy"
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: !Ref PostDeployCodeBuildComputeType
+        Image: !Ref CodeBuildImage
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: S3_DEPLOY_BUCKET
+            Value: !Ref ArtifactBucket
+          - Name: TEMPLATE_PATH
+            Value: !Ref TemplatePath
+          - Name: PARAMETER_FILE_NAME
+            Value: !Ref ParameterFileName
+          - Name: STACK_NAME
+            Value: !Sub "${AWS::StackName}-deployment"
+          - Name: ACCOUNT_ID
+            Value: !Ref AWS::AccountId
+          - Name: ENVIRONMENT
+            Value: !Ref Environment
+          - Name: ECR_REPOSITORY_NAME
+            Value: !If [CreateECRRepo, !Ref ECRRepository, '']
+          - Name: ECR_REPOSITORY_ARN
+            Value: !If [CreateECRRepo, !GetAtt ECRRepository.Arn, '']
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Ref PostDeployBuildspecPath
+      Tags:
+        - Key: EDATProduct
+          Value: CI/CD Pipeline v2.0
+        - Key: EDATProductVersion
+          Value: !FindInMap [ TemplateProperties, Metadata, Version ]
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: Custodian
+          Value: !Ref Custodian
+        - Key: SystemOwner
+          Value: !Ref SystemOwner
+        - Key: PrimaryITContact
+          Value: !Ref PrimaryITContact
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: CostCenterApprover
+          Value: !Ref CostCenterApprover
+        - Key: Level1BusinessArea
+          Value: !Ref Level1BusinessArea
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: Environment
+          Value: !Ref Environment
+
+  PipelineWebhook:
+    Type: AWS::CodePipeline::Webhook
+    Properties:
+      Authentication: GITHUB_HMAC
+      AuthenticationConfiguration:
+        SecretToken: !Ref GitHubSecret
+      Filters:
+        - JsonPath: $.ref
+          MatchEquals: refs/heads/{Branch}
+      TargetPipeline: !Ref CodePipeline
+      TargetAction: GitHubSourceAction
+      Name: !Sub "${AWS::StackName}-PipelineWebhook"
+      TargetPipelineVersion: !GetAtt
+        - CodePipeline
+        - Version
+      RegisterWithThirdParty: true
+
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucket
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      Name: !Sub "${AWS::StackName}"
+      RestartExecutionOnUpdate: true
+      Tags:
+        - Key: EDATProduct
+          Value: CI/CD Pipeline v2.0
+        - Key: EDATProductVersion
+          Value: !FindInMap [ TemplateProperties, Metadata, Version ]
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: RepositoryName
+          Value: !Ref RepositoryName
+        - Key: Custodian
+          Value: !Ref Custodian
+        - Key: SystemOwner
+          Value: !Ref SystemOwner
+        - Key: PrimaryITContact
+          Value: !Ref PrimaryITContact
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: CostCenterApprover
+          Value: !Ref CostCenterApprover
+        - Key: Level1BusinessArea
+          Value: !Ref Level1BusinessArea
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: Environment
+          Value: !Ref Environment
+      Stages:
+        - Name: Get-Source
+          Actions:
+            - Name: GitHubSourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: "1"
+                Provider: GitHub
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                Repo: !If
+                  - CreateGitHubRepo
+                  - !Select ["1", !Split [ "/" , !Ref GitHubRepo ]]
+                  - !Ref RepositoryName
+                Owner: !Ref GitHubOwner
+                Branch: !Ref RepositoryBranch
+                OAuthToken: !Ref GitHubPAT
+                PollForSourceChanges: false
+              RunOrder: 1
+            - Name: LintRulesSourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: "1"
+                Provider: S3
+              OutputArtifacts:
+                - Name: LintRules
+              Configuration:
+                S3Bucket: !If [OtherRegions, !Sub "lly-templates--${AWS::Region}", "lly-templates"]
+                S3ObjectKey: code/test-resources/cfn-lint-rules.zip
+                PollForSourceChanges: false
+              RunOrder: 2
+        - Name: Build-Test
+          Actions:
+            - Name: BuildTest
+              ActionTypeId:
+                  Category: Build
+                  Owner: AWS
+                  Version: "1"
+                  Provider: CodeBuild
+              InputArtifacts:
+                - Name: SourceOutput
+                - Name: LintRules
+              OutputArtifacts:
+                - Name: !Sub "${AWS::StackName}-Build"
+              Configuration:
+                  ProjectName: !Ref CodeBuildProject
+                  PrimarySource: SourceOutput
+              RunOrder: 1
+        - !If
+          - ShouldRunPostDeployBuild
+          - Name: Post-Deploy
+            Actions:
+              - Name: PostDeployBuild
+                ActionTypeId:
+                    Category: Build
+                    Owner: AWS
+                    Version: "1"
+                    Provider: CodeBuild
+                InputArtifacts:
+                  - Name: SourceOutput
+                Configuration:
+                    ProjectName: !Ref PostDeployCodeBuildProject
+                RunOrder: 1
+          - !Ref AWS::NoValue
+
+  NotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "${AWS::StackName}-Topic"
+      Subscription:
+        - Endpoint: !FindInMap [ EdatPipelineV2, Telemetry, DefaultArn ]
+          Protocol: sqs
+      Tags:
+        - Key: EDATProduct
+          Value: CI/CD Pipeline v2.0
+        - Key: EDATProductVersion
+          Value: !FindInMap [ TemplateProperties, Metadata, Version ]
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: RepositoryName
+          Value: !Ref RepositoryName
+        - Key: Custodian
+          Value: !Ref Custodian
+        - Key: SystemOwner
+          Value: !Ref SystemOwner
+        - Key: PrimaryITContact
+          Value: !Ref PrimaryITContact
+        - Key: CostCenter
+          Value: !Ref CostCenter
+        - Key: CostCenterApprover
+          Value: !Ref CostCenterApprover
+        - Key: Level1BusinessArea
+          Value: !Ref Level1BusinessArea
+        - Key: DataClassification
+          Value: !Ref DataClassification
+        - Key: Environment
+          Value: !Ref Environment
+
+  NotificationTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref NotificationTopic
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: CodeNotification_publish
+            Effect: Allow
+            Action: SNS:Publish
+            Resource: !Ref NotificationTopic
+            Principal:
+              Service: codestar-notifications.amazonaws.com
+
+  PipelineNotificationRule:
+    DependsOn: ServiceLinkedRole
+    Type: AWS::CodeStarNotifications::NotificationRule
+    Properties:
+      Name: !Sub "${AWS::StackName}-TelemetryRule"
+      Resource: !Sub "arn:${AWS::Partition}:codepipeline:${AWS::Region}:${AWS::AccountId}:${CodePipeline}"
+      DetailType: FULL
+      EventTypeIds:
+        - codepipeline-pipeline-manual-approval-failed
+        - codepipeline-pipeline-manual-approval-needed
+        - codepipeline-pipeline-manual-approval-succeeded
+        - codepipeline-pipeline-pipeline-execution-canceled
+        - codepipeline-pipeline-pipeline-execution-failed
+        - codepipeline-pipeline-pipeline-execution-resumed
+        - codepipeline-pipeline-pipeline-execution-started
+        - codepipeline-pipeline-pipeline-execution-succeeded
+        - codepipeline-pipeline-pipeline-execution-superseded
+        - codepipeline-pipeline-stage-execution-canceled
+        - codepipeline-pipeline-stage-execution-failed
+        - codepipeline-pipeline-stage-execution-resumed
+        - codepipeline-pipeline-stage-execution-started
+        - codepipeline-pipeline-stage-execution-succeeded
+      Targets:
+        - TargetAddress: !Ref NotificationTopic
+          TargetType: SNS
+      Tags:
+        EDATProduct: CI/CD Pipeline v2.0
+        EDATProductVersion: !FindInMap [ TemplateProperties, Metadata, Version ]
+        ProjectName: !Ref ProjectName
+        SystemOwner: !Ref SystemOwner
+        SystemCustodian: !Ref Custodian
+        PrimaryItContact: !Ref PrimaryITContact
+        CostCenter: !Ref CostCenter
+        Environment: !Ref Environment
+        DataClassification: !Ref DataClassification
+
+
+Outputs:
+  CodeBuildPreDeployProjectName:
+    Value: !Sub "${AWS::StackName}-PreDeploy"
+  CodeBuildPostDeployProjectName:
+    Value: !Sub "${AWS::StackName}-PostDeploy"
+  CodeBuildPrPostBackProjectName:
+    Value: !Sub "${AWS::StackName}-PrPostBack"
+  CodePipelineName:
+    Value: !Ref AWS::StackName
+  ArtifactBucketArn:
+    Value: !GetAtt ArtifactBucket.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-deployment-ArtifactBucketArn"
+  TemplateName:
+    Value: !FindInMap [ TemplateProperties, Metadata, Name ]
+    Export:
+      Name: !Sub "${AWS::StackName}-template-name"
+  TemplateVersion:
+    Value: !FindInMap [ TemplateProperties, Metadata, Version ]
+    Export:
+      Name: !Sub "${AWS::StackName}-template-version"
+  PipelineVersion:
+    Value: !FindInMap [ TemplateProperties, Metadata, Version ]
+    Export:
+      Name: !Sub "${AWS::StackName}-pipeline-version"
+  PipelineNotifications:
+    Value: !Ref NotificationTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-pipeline-notification"
+  ECRRepositoryName:
+    Condition: CreateECRRepo
+    Value: !Ref ECRRepository
+    Export:
+      Name: !Sub "${AWS::StackName}-deployment-ECRRepositoryName"
+  ECRRepositoryArn:
+    Condition: CreateECRRepo
+    Value: !GetAtt ECRRepository.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-deployment-ECRRepositoryArn"

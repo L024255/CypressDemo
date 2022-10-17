@@ -1,0 +1,31 @@
+{
+    "Parameters": {
+      "DeployEnvironment": "dev",
+      "CloudFrontRequireAuth": "true",
+      "EmptyWebBucketOnDelete": "true",
+      "AppName": "dhai-sddio-ui",
+      "CertificateArn": "arn:aws:acm:us-east-1:112678791236:certificate/08010450-7413-4e0b-866f-03ad5b90c50c",
+      "DomainAlias": "sddio-dev.lilly.com",
+      "DistributionId": "E2PO033DQFWLNB",
+      "CostCenter": "100ACNF",
+      "CostCenterApprover": "DA38554",
+      "SystemOwner": "DA38554",
+      "SystemCustodian": "TC88497",
+      "PrimaryItContact": "C230968",
+      "Level1BusinessArea": "MDIT",
+      "DataClassification": "Yellow",
+      "Hipaa": "No"
+    },
+    "Tags": {
+      "ApplicationCI": "CI00000004632051",
+      "CostCenter": "100ACNF",
+      "CostCenterApprover": "DA38554",
+      "SystemOwner": "DA38554",
+      "SystemCustodian": "TC88497",
+      "PrimaryItContact": "C230968",
+      "Level1BusinessArea": "MDIT",
+      "DataClassification": "Yellow",
+      "Hipaa": "No"
+    },
+    "StackPolicy": {}
+  }

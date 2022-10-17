@@ -1,0 +1,10 @@
+.MuiCheckbox-colorSecondary.Mui-checked {
+  color: #00AF3F;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+}
+.MuiCheckbox-root.MuiCheckbox-root svg {
+  width: 18px;
+  height: 18px;
+}

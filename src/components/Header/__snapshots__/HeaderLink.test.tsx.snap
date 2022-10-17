@@ -1,0 +1,16 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`HeaderLink should render header link 1`] = `
+Array [
+  <UNDEFINED
+    className="default header-link "
+    onClick={[Function]}
+    style={Object {}}
+    to="/"
+  >
+    <UNDEFINED
+      variant="body2"
+    />
+  </UNDEFINED>,
+]
+`;

@@ -1,0 +1,95 @@
+{
+    "event": {
+        "Records": [
+            {
+                "cf": {
+                    "config": {
+                        "distributionDomainName": "d1l1caev0ejgt7.cloudfront.net",
+                        "distributionId": "EAWGBE34H1ZGT",
+                        "eventType": "viewer-request",
+                        "requestId": "Y03GWMYB5f-JgfGpAE5Pcyuw4apqKD4YP0mAPsheTBULwciVswK22w=="
+                    },
+                    "request": {
+                        "clientIp": "40.248.248.14",
+                        "headers": {
+                            "host": [
+                                {
+                                    "key": "Host",
+                                    "value": "d1l1caev0ejgt7.cloudfront.net"
+                                }
+                            ],
+                            "user-agent": [
+                                {
+                                    "key": "User-Agent",
+                                    "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36"
+                                }
+                            ],
+                            "pragma": [
+                                {
+                                    "key": "Pragma",
+                                    "value": "no-cache"
+                                }
+                            ],
+                            "cache-control": [
+                                {
+                                    "key": "Cache-Control",
+                                    "value": "no-cache"
+                                }
+                            ],
+                            "dnt": [
+                                {
+                                    "key": "DNT",
+                                    "value": "1"
+                                }
+                            ],
+                            "accept": [
+                                {
+                                    "key": "Accept",
+                                    "value": "*/*"
+                                }
+                            ],
+                            "referer": [
+                                {
+                                    "key": "Referer",
+                                    "value": "https://d1l1caev0ejgt7.cloudfront.net/"
+                                }
+                            ],
+                            "accept-encoding": [
+                                {
+                                    "key": "Accept-Encoding",
+                                    "value": "gzip, deflate, br"
+                                }
+                            ],
+                            "accept-language": [
+                                {
+                                    "key": "Accept-Language",
+                                    "value": "en-US,en;q=0.9"
+                                }
+                            ],
+                            "cookie": [
+                                {
+                                    "key": "Cookie",
+                                    "value": "accessToken=eyJhbGciOiJSUzI1NiIsImtpZCI6Imp3dDIwMTkifQ.eyJzY29wZSI6WyJhdXRoX3dlYiIsIm9wZW5pZCJdLCJjbGllbnRfaWQiOiJ3aHo0N2ZjeXBzNmFwdm5rIiwiYWNjZXNzX2dyYW50IjoiakhSb09NQVJLS1ROR3BtZHhsM3JhbEx0cHlTZndLRGsiLCJpc3MiOiJodHRwczovL2ZlZGVyYXRlLXFhLnhoMS5saWxseS5jb20iLCJqdGkiOiJFUTRYdjhWOHFpak96UDhqIiwiQ04iOiJDMjY5OTY0Iiwic3ViamVjdCI6IkMyNjk5NjQiLCJ1c2VyUHJpbmNpcGFsTmFtZSI6ImJ1dHpfamFzb25AbmV0d29yay5saWxseS5jb20iLCJleHAiOjE1NTE5ODI1NTh9.fqcJzxlh0RaTzNBWQ2Iuct6czfStgenCNC353FR_ZZXP4Vqx88oeznU28mbw6feRne-QhP6T0iUgLUS9yGZNQgKi5vPJ5N2XRZ9Ec-urNQVExzJBqqfgXLV_n-KUWnNbekzdDtuKV8W2G_nubHjaW7Pb48BBmPDCxtabPGwrRBIp9i1r8BhZ7Wc6EAYArOHNhgoQl2bNGiMHZqCXzoqDSvCQDuANnkya0Z3kkXS0e90jImhLYsLspeTUAgxASNFaixiadl-frwJai83EgdXmc899fTvwOXdnrAd3X0rOHPLFc7QnqY6Z8UxiDe6B9PP97jVk8gkq6mKSvE7MuOoiIA; refreshToken=nWeOiQI8KRfSTONLMOvrjbQdwXiLhpVA2fSjum6Z0v; idToken=eyJhbGciOiJSUzI1NiIsImtpZCI6ImRRTGRCdVpDSmc4R2xPVDZ1REJiT2pFam5aayJ9.eyJzdWIiOiJDMjY5OTY0IiwiYXVkIjoid2h6NDdmY3lwczZhcHZuayIsImp0aSI6InFZc3BaQnBhQkI2azVYV3N5RHNoZVYiLCJpc3MiOiJodHRwczovL2ZlZGVyYXRlLXFhLnhoMS5saWxseS5jb20iLCJpYXQiOjE1NTE5ODA3NTcsImV4cCI6MTU1MTk4MDg3Nywibm9uY2UiOiIifQ.uM47T7lwBfhn2jMcWaJnOL3mkVf1OTnmS3xEGjBqMZWT4VcNuqPdjHuEV4YNmZ__I-2c2vDW-Ofia5fGeFTnCcmhOl6feih2KHNw9J6z-A_PiwSQH0S2SsfD63ebzHyBPWazfLFUPmutZBJ0vWqyveT12l5SmoS98IZ9BwR38vG-sGYulWLS0M9ecFAGZCbv7sI7NbPtZvTBlXMEfJ1gXteVdFzZMiUSCXYmVk_DwT7PfTa8Ej1FSCvsXaN2H-3iscovNj9QPGFMAKFMpeNCNduwcd_YZAlyZOhhRibQqDEj48yay2ebQ_Cn8POgILfZNCtP_lqJbMtvFX_gF4GHLw"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "querystring": "",
+                        "uri": "/index.js"
+                    }
+                }
+            }
+        ]
+    },
+    "context": {
+        "callbackWaitsForEmptyEventLoop": true,
+        "logGroupName": "/aws/lambda/us-east-1.cirr-aws-authenticators-EdgeAuthFunction-R8JMUFRXOBI9",
+        "logStreamName": "2019/03/07/[6]786d19a1772c41a29dfe9e4115a258cf",
+        "functionName": "us-east-1.cirr-aws-authenticators-EdgeAuthFunction-R8JMUFRXOBI9",
+        "memoryLimitInMB": "128",
+        "functionVersion": "6",
+        "invokeid": "d8bb2ce4-3e4b-407b-8fe8-8e4c5a7d1e9d",
+        "awsRequestId": "d8bb2ce4-3e4b-407b-8fe8-8e4c5a7d1e9d",
+        "invokedFunctionArn": "arn:aws:lambda:us-east-2:094060919181:function:us-east-1.cirr-aws-authenticators-EdgeAuthFunction-R8JMUFRXOBI9:6"
+    }
+}
