@@ -11,7 +11,6 @@
 ### eslint error
 After your compile, if you meet error like this:<br>
 ![eslintError](public/readme/eslintError.png)
-please refer to: [Fix Eslint Error](public/readme/fixEslintError.md)
 
 ## How to run Cypress tests using Cypress CLI:
 
