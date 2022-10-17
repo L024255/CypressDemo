@@ -12,3 +12,7 @@
 After your compile, if you meet error like this:<br>
 ![eslintError](public/readme/eslintError.png)
 please refer to: [Fix Eslint Error](public/readme/fixEslintError.md)
+
+## How to run Cypress tests using Cypress CLI:
+
+1.To run all the test cases from your Workspace on the Command-Line or terminal, instead of "cypress open", we just have to mention "cypress run" We can use the below command to run all the spec files present under the Integration folder.
